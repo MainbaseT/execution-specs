@@ -11,7 +11,7 @@ Introduction
 
 Implementations of the EVM storage related instructions.
 """
-from ethereum.base_types import Uint
+from ethereum_types.numeric import Uint
 
 from ...state import get_storage, get_storage_original, set_storage
 from .. import Evm
@@ -55,7 +55,7 @@ def sload(evm: Evm) -> None:
     push(evm.stack, value)
 
     # PROGRAM COUNTER
-    evm.pc += 1
+    evm.pc += Uint(1)
 
 
 def sstore(evm: Evm) -> None:
@@ -120,4 +120,4 @@ def sstore(evm: Evm) -> None:
     set_storage(evm.env.state, evm.message.current_target, key, new_value)
 
     # PROGRAM COUNTER
-    evm.pc += 1
+    evm.pc += Uint(1)

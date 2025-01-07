@@ -13,7 +13,8 @@ Implementation of the `RIPEMD160` precompiled contract.
 """
 import hashlib
 
-from ethereum.base_types import Uint
+from ethereum_types.numeric import Uint
+
 from ethereum.utils.byte import left_pad_zero_bytes
 from ethereum.utils.numeric import ceil32
 
@@ -33,7 +34,7 @@ def ripemd160(evm: Evm) -> None:
     data = evm.message.data
 
     # GAS
-    word_count = ceil32(Uint(len(data))) // 32
+    word_count = ceil32(Uint(len(data))) // Uint(32)
     charge_gas(evm, GAS_RIPEMD160 + GAS_RIPEMD160_WORD * word_count)
 
     # OPERATION

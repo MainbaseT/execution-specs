@@ -28,12 +28,15 @@ from typing import (
     Union,
 )
 
+from ethereum_types.bytes import Bytes
+from ethereum_types.frozen import slotted_freezable
+from ethereum_types.numeric import U256, Uint
+
 from ethereum.crypto.hash import keccak256
 from ethereum.london import trie as previous_trie
 from ethereum.utils.hexadecimal import hex_to_bytes
 
 from .. import rlp
-from ..base_types import U256, Bytes, Uint, slotted_freezable
 from .blocks import Receipt
 from .fork_types import Account, Address, Root, encode_account
 from .transactions import LegacyTransaction
@@ -434,10 +437,12 @@ def patricialize(
 
     # if extension node
     if prefix_length > 0:
-        prefix = arbitrary_key[level : level + prefix_length]
+        prefix = arbitrary_key[int(level) : int(level) + prefix_length]
         return ExtensionNode(
             prefix,
-            encode_internal_node(patricialize(obj, level + prefix_length)),
+            encode_internal_node(
+                patricialize(obj, level + Uint(prefix_length))
+            ),
         )
 
     branches: List[MutableMapping[Bytes, Bytes]] = []
@@ -455,7 +460,7 @@ def patricialize(
 
     return BranchNode(
         [
-            encode_internal_node(patricialize(branches[k], level + 1))
+            encode_internal_node(patricialize(branches[k], level + Uint(1)))
             for k in range(16)
         ],
         value,

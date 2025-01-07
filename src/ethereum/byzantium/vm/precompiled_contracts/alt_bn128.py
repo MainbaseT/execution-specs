@@ -11,7 +11,8 @@ Introduction
 
 Implementation of the ALT_BN128 precompiled contracts.
 """
-from ethereum.base_types import U256, Uint
+from ethereum_types.numeric import U256, Uint
+
 from ethereum.crypto.alt_bn128 import (
     ALT_BN128_CURVE_ORDER,
     ALT_BN128_PRIME,
@@ -45,13 +46,13 @@ def alt_bn128_add(evm: Evm) -> None:
 
     # OPERATION
     x0_bytes = buffer_read(data, U256(0), U256(32))
-    x0_value = U256.from_be_bytes(x0_bytes)
+    x0_value = int(U256.from_be_bytes(x0_bytes))
     y0_bytes = buffer_read(data, U256(32), U256(32))
-    y0_value = U256.from_be_bytes(y0_bytes)
+    y0_value = int(U256.from_be_bytes(y0_bytes))
     x1_bytes = buffer_read(data, U256(64), U256(32))
-    x1_value = U256.from_be_bytes(x1_bytes)
+    x1_value = int(U256.from_be_bytes(x1_bytes))
     y1_bytes = buffer_read(data, U256(96), U256(32))
-    y1_value = U256.from_be_bytes(y1_bytes)
+    y1_value = int(U256.from_be_bytes(y1_bytes))
 
     for i in (x0_value, y0_value, x1_value, y1_value):
         if i >= ALT_BN128_PRIME:
@@ -84,10 +85,10 @@ def alt_bn128_mul(evm: Evm) -> None:
 
     # OPERATION
     x0_bytes = buffer_read(data, U256(0), U256(32))
-    x0_value = U256.from_be_bytes(x0_bytes)
+    x0_value = int(U256.from_be_bytes(x0_bytes))
     y0_bytes = buffer_read(data, U256(32), U256(32))
-    y0_value = U256.from_be_bytes(y0_bytes)
-    n = U256.from_be_bytes(buffer_read(data, U256(64), U256(32)))
+    y0_value = int(U256.from_be_bytes(y0_bytes))
+    n = int(U256.from_be_bytes(buffer_read(data, U256(64), U256(32))))
 
     for i in (x0_value, y0_value):
         if i >= ALT_BN128_PRIME:
@@ -124,12 +125,14 @@ def alt_bn128_pairing_check(evm: Evm) -> None:
     for i in range(len(data) // 192):
         values = []
         for j in range(6):
-            value = U256.from_be_bytes(
-                data[i * 192 + 32 * j : i * 192 + 32 * (j + 1)]
+            value = int(
+                U256.from_be_bytes(
+                    data[i * 192 + 32 * j : i * 192 + 32 * (j + 1)]
+                )
             )
             if value >= ALT_BN128_PRIME:
                 raise OutOfGasError
-            values.append(int(value))
+            values.append(value)
 
         try:
             p = BNP(BNF(values[0]), BNF(values[1]))

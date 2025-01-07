@@ -33,10 +33,11 @@ from typing import (
     overload,
 )
 
+from ethereum_types.bytes import Bytes, FixedBytes
+from ethereum_types.numeric import FixedUnsigned, Uint
+
 from ethereum.crypto.hash import Hash32, keccak256
 from ethereum.exceptions import RLPDecodingError, RLPEncodingError
-
-from .base_types import Bytes, FixedBytes, FixedUint, Uint
 
 
 class RLP(Protocol):
@@ -52,7 +53,7 @@ class RLP(Protocol):
 Simple: TypeAlias = Union[Sequence["Simple"], bytes]
 
 Extended: TypeAlias = Union[
-    Sequence["Extended"], bytearray, bytes, Uint, FixedUint, str, bool, RLP
+    Sequence["Extended"], bytearray, bytes, Uint, FixedUnsigned, str, bool, RLP
 ]
 
 
@@ -83,7 +84,7 @@ def encode(raw_data: Extended) -> Bytes:
             return encode_bytes(raw_data.encode())
         else:
             return encode_sequence(raw_data)
-    elif isinstance(raw_data, (Uint, FixedUint)):
+    elif isinstance(raw_data, (Uint, FixedUnsigned)):
         return encode(raw_data.to_be_bytes())
     elif isinstance(raw_data, bool):
         if raw_data:
@@ -112,7 +113,7 @@ def encode_bytes(raw_bytes: Bytes) -> Bytes:
     encoded : `ethereum.base_types.Bytes`
         The RLP encoded bytes representing `raw_bytes`.
     """
-    len_raw_data = Uint(len(raw_bytes))
+    len_raw_data = len(raw_bytes)
 
     if len_raw_data == 1 and raw_bytes[0] < 0x80:
         return raw_bytes
@@ -120,7 +121,7 @@ def encode_bytes(raw_bytes: Bytes) -> Bytes:
         return bytes([0x80 + len_raw_data]) + raw_bytes
     else:
         # length of raw data represented as big endian bytes
-        len_raw_data_as_be = len_raw_data.to_be_bytes()
+        len_raw_data_as_be = Uint(len_raw_data).to_be_bytes()
         return (
             bytes([0xB7 + len(len_raw_data_as_be)])
             + len_raw_data_as_be
@@ -143,12 +144,12 @@ def encode_sequence(raw_sequence: Sequence[Extended]) -> Bytes:
         The RLP encoded bytes representing `raw_sequence`.
     """
     joined_encodings = get_joined_encodings(raw_sequence)
-    len_joined_encodings = Uint(len(joined_encodings))
+    len_joined_encodings = len(joined_encodings)
 
     if len_joined_encodings < 0x38:
         return Bytes([0xC0 + len_joined_encodings]) + joined_encodings
     else:
-        len_joined_encodings_as_be = len_joined_encodings.to_be_bytes()
+        len_joined_encodings_as_be = Uint(len_joined_encodings).to_be_bytes()
         return (
             Bytes([0xF7 + len(len_joined_encodings_as_be)])
             + len_joined_encodings_as_be
@@ -245,7 +246,7 @@ def _deserialize_to(class_: object, value: Simple) -> Extended:
         return _deserialize_to_annotation(class_, value)
     elif is_dataclass(class_):
         return _deserialize_to_dataclass(class_, value)
-    elif issubclass(class_, (Uint, FixedUint)):
+    elif issubclass(class_, (Uint, FixedUnsigned)):
         return _deserialize_to_uint(class_, value)
     elif issubclass(class_, (Bytes, FixedBytes)):
         return _deserialize_to_bytes(class_, value)
@@ -303,8 +304,8 @@ def _deserialize_to_bytes(
 
 
 def _deserialize_to_uint(
-    class_: Union[Type[Uint], Type[FixedUint]], decoded: Simple
-) -> Union[Uint, FixedUint]:
+    class_: Union[Type[Uint], Type[FixedUnsigned]], decoded: Simple
+) -> Union[Uint, FixedUnsigned]:
     if not isinstance(decoded, bytes):
         raise RLPDecodingError
     try:
@@ -398,12 +399,12 @@ def decode_to_bytes(encoded_bytes: Bytes) -> Bytes:
             raise RLPDecodingError
         if encoded_bytes[1] == 0:
             raise RLPDecodingError
-        len_decoded_data = Uint.from_be_bytes(
-            encoded_bytes[1:decoded_data_start_idx]
+        len_decoded_data = int(
+            Uint.from_be_bytes(encoded_bytes[1:decoded_data_start_idx])
         )
         if len_decoded_data < 0x38:
             raise RLPDecodingError
-        decoded_data_end_idx = decoded_data_start_idx + len_decoded_data
+        decoded_data_end_idx = decoded_data_start_idx + int(len_decoded_data)
         if decoded_data_end_idx - 1 >= len(encoded_bytes):
             raise RLPDecodingError
         return encoded_bytes[decoded_data_start_idx:decoded_data_end_idx]
@@ -435,8 +436,8 @@ def decode_to_sequence(encoded_sequence: Bytes) -> Sequence[Simple]:
             raise RLPDecodingError
         if encoded_sequence[1] == 0:
             raise RLPDecodingError
-        len_joined_encodings = Uint.from_be_bytes(
-            encoded_sequence[1:joined_encodings_start_idx]
+        len_joined_encodings = int(
+            Uint.from_be_bytes(encoded_sequence[1:joined_encodings_start_idx])
         )
         if len_joined_encodings < 0x38:
             raise RLPDecodingError
@@ -508,11 +509,11 @@ def decode_item_length(encoded_data: Bytes) -> int:
     if len(encoded_data) <= 0:
         raise RLPDecodingError
 
-    first_rlp_byte = Uint(encoded_data[0])
+    first_rlp_byte = encoded_data[0]
 
     # This is the length of the big endian representation of the length of
     # rlp encoded object byte stream.
-    length_length = Uint(0)
+    length_length = 0
     decoded_data_length = 0
 
     # This occurs only when the raw_data is a single byte whose value < 128
@@ -533,8 +534,8 @@ def decode_item_length(encoded_data: Bytes) -> int:
             raise RLPDecodingError
         if encoded_data[1] == 0:
             raise RLPDecodingError
-        decoded_data_length = Uint.from_be_bytes(
-            encoded_data[1 : 1 + length_length]
+        decoded_data_length = int(
+            Uint.from_be_bytes(encoded_data[1 : 1 + length_length])
         )
     # This occurs only when the raw_data is a sequence of objects with
     # length(concatenation of encoding of each object) < 56
@@ -548,8 +549,8 @@ def decode_item_length(encoded_data: Bytes) -> int:
             raise RLPDecodingError
         if encoded_data[1] == 0:
             raise RLPDecodingError
-        decoded_data_length = Uint.from_be_bytes(
-            encoded_data[1 : 1 + length_length]
+        decoded_data_length = int(
+            Uint.from_be_bytes(encoded_data[1 : 1 + length_length])
         )
 
     return 1 + length_length + decoded_data_length

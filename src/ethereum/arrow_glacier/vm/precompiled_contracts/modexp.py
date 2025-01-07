@@ -11,13 +11,14 @@ Introduction
 
 Implementation of the `MODEXP` precompiled contract.
 """
-from ethereum.base_types import U256, Bytes, Uint
+from ethereum_types.bytes import Bytes
+from ethereum_types.numeric import U256, Uint
 
 from ...vm import Evm
 from ...vm.gas import charge_gas
 from ..memory import buffer_read
 
-GQUADDIVISOR = 3
+GQUADDIVISOR = Uint(3)
 
 
 def modexp(evm: Evm) -> None:
@@ -59,8 +60,8 @@ def modexp(evm: Evm) -> None:
     if modulus == 0:
         evm.output = Bytes(b"\x00") * modulus_length
     else:
-        evm.output = Uint(pow(base, exp, modulus)).to_bytes(
-            modulus_length, "big"
+        evm.output = pow(base, exp, modulus).to_bytes(
+            Uint(modulus_length), "big"
         )
 
 
@@ -84,8 +85,8 @@ def complexity(base_length: U256, modulus_length: U256) -> Uint:
         Complexity of performing the operation.
     """
     max_length = max(Uint(base_length), Uint(modulus_length))
-    words = (max_length + 7) // 8
-    return words**2
+    words = (max_length + Uint(7)) // Uint(8)
+    return words ** Uint(2)
 
 
 def iterations(exponent_length: U256, exponent_head: Uint) -> Uint:
@@ -109,21 +110,21 @@ def iterations(exponent_length: U256, exponent_head: Uint) -> Uint:
     iterations : `Uint`
         Number of iterations.
     """
-    if exponent_length <= 32 and exponent_head == 0:
+    if exponent_length <= U256(32) and exponent_head == U256(0):
         count = Uint(0)
-    elif exponent_length <= 32:
+    elif exponent_length <= U256(32):
         bit_length = Uint(exponent_head.bit_length())
 
-        if bit_length > 0:
-            bit_length -= 1
+        if bit_length > Uint(0):
+            bit_length -= Uint(1)
 
         count = bit_length
     else:
-        length_part = 8 * (Uint(exponent_length) - 32)
+        length_part = Uint(8) * (Uint(exponent_length) - Uint(32))
         bits_part = Uint(exponent_head.bit_length())
 
-        if bits_part > 0:
-            bits_part -= 1
+        if bits_part > Uint(0):
+            bits_part -= Uint(1)
 
         count = length_part + bits_part
 

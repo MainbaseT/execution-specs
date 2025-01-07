@@ -12,7 +12,7 @@ Introduction
 Implementations of the EVM bitwise instructions.
 """
 
-from ethereum.base_types import U256
+from ethereum_types.numeric import U256, Uint
 
 from .. import Evm
 from ..gas import GAS_VERY_LOW, charge_gas
@@ -41,7 +41,7 @@ def bitwise_and(evm: Evm) -> None:
     push(evm.stack, x & y)
 
     # PROGRAM COUNTER
-    evm.pc += 1
+    evm.pc += Uint(1)
 
 
 def bitwise_or(evm: Evm) -> None:
@@ -66,7 +66,7 @@ def bitwise_or(evm: Evm) -> None:
     push(evm.stack, x | y)
 
     # PROGRAM COUNTER
-    evm.pc += 1
+    evm.pc += Uint(1)
 
 
 def bitwise_xor(evm: Evm) -> None:
@@ -91,7 +91,7 @@ def bitwise_xor(evm: Evm) -> None:
     push(evm.stack, x ^ y)
 
     # PROGRAM COUNTER
-    evm.pc += 1
+    evm.pc += Uint(1)
 
 
 def bitwise_not(evm: Evm) -> None:
@@ -115,7 +115,7 @@ def bitwise_not(evm: Evm) -> None:
     push(evm.stack, ~x)
 
     # PROGRAM COUNTER
-    evm.pc += 1
+    evm.pc += Uint(1)
 
 
 def get_byte(evm: Evm) -> None:
@@ -138,17 +138,17 @@ def get_byte(evm: Evm) -> None:
     charge_gas(evm, GAS_VERY_LOW)
 
     # OPERATION
-    if byte_index >= 32:
+    if byte_index >= U256(32):
         result = U256(0)
     else:
-        extra_bytes_to_right = 31 - byte_index
+        extra_bytes_to_right = U256(31) - byte_index
         # Remove the extra bytes in the right
-        word = word >> (extra_bytes_to_right * 8)
+        word = word >> (extra_bytes_to_right * U256(8))
         # Remove the extra bytes in the left
-        word = word & 0xFF
-        result = U256(word)
+        word = word & U256(0xFF)
+        result = word
 
     push(evm.stack, result)
 
     # PROGRAM COUNTER
-    evm.pc += 1
+    evm.pc += Uint(1)

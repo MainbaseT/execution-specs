@@ -7,7 +7,9 @@ from contextlib import ExitStack
 from dataclasses import asdict, dataclass, is_dataclass
 from typing import List, Optional, Protocol, TextIO, Union, runtime_checkable
 
-from ethereum.base_types import U256, Bytes, Uint
+from ethereum_types.bytes import Bytes
+from ethereum_types.numeric import U256, Uint
+
 from ethereum.trace import (
     EvmStop,
     GasAndRefund,
@@ -166,7 +168,7 @@ def evm_trace(
         evm.env.traces.append(final_trace)
     elif isinstance(event, PrecompileStart):
         new_trace = Trace(
-            pc=evm.pc,
+            pc=int(evm.pc),
             op="0x" + event.address.hex().lstrip("0"),
             gas=hex(evm.gas_left),
             gasCost="0x0",
@@ -174,7 +176,7 @@ def evm_trace(
             memSize=len_memory,
             stack=stack,
             returnData=return_data,
-            depth=evm.message.depth + 1,
+            depth=int(evm.message.depth) + 1,
             refund=refund_counter,
             opName="0x" + event.address.hex().lstrip("0"),
             precompile=True,
@@ -191,7 +193,7 @@ def evm_trace(
         if op == "InvalidOpcode":
             op = "Invalid"
         new_trace = Trace(
-            pc=evm.pc,
+            pc=int(evm.pc),
             op=op,
             gas=hex(evm.gas_left),
             gasCost="0x0",
@@ -199,7 +201,7 @@ def evm_trace(
             memSize=len_memory,
             stack=stack,
             returnData=return_data,
-            depth=evm.message.depth + 1,
+            depth=int(evm.message.depth) + 1,
             refund=refund_counter,
             opName=str(event.op).split(".")[-1],
         )
@@ -233,7 +235,7 @@ def evm_trace(
                 ) from event.error
 
             new_trace = Trace(
-                pc=evm.pc,
+                pc=int(evm.pc),
                 op=event.error.code,
                 gas=hex(evm.gas_left),
                 gasCost="0x0",
@@ -241,7 +243,7 @@ def evm_trace(
                 memSize=len_memory,
                 stack=stack,
                 returnData=return_data,
-                depth=evm.message.depth + 1,
+                depth=int(evm.message.depth) + 1,
                 refund=refund_counter,
                 opName="InvalidOpcode",
                 gasCostTraced=True,
