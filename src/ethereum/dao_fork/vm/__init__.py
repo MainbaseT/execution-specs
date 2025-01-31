@@ -16,8 +16,11 @@ The abstract computer which runs the code stored in an
 from dataclasses import dataclass
 from typing import List, Optional, Set, Tuple, Union
 
-from ethereum.base_types import U256, Bytes, Bytes0, Uint
+from ethereum_types.bytes import Bytes, Bytes0
+from ethereum_types.numeric import U256, Uint
+
 from ethereum.crypto.hash import Hash32
+from ethereum.exceptions import EthereumException
 
 from ..blocks import Log
 from ..fork_types import Address
@@ -81,7 +84,7 @@ class Evm:
     message: Message
     output: Bytes
     accounts_to_delete: Set[Address]
-    error: Optional[Exception]
+    error: Optional[EthereumException]
 
 
 def incorporate_child_on_success(evm: Evm, child_evm: Evm) -> None:
@@ -98,6 +101,7 @@ def incorporate_child_on_success(evm: Evm, child_evm: Evm) -> None:
     evm.gas_left += child_evm.gas_left
     evm.logs += child_evm.logs
     evm.refund_counter += child_evm.refund_counter
+    evm.accounts_to_delete.update(child_evm.accounts_to_delete)
 
 
 def incorporate_child_on_error(evm: Evm, child_evm: Evm) -> None:

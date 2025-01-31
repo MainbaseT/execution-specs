@@ -12,7 +12,8 @@ Introduction
 Implementations of the EVM Arithmetic instructions.
 """
 
-from ethereum.base_types import U255_CEIL_VALUE, U256, U256_CEIL_VALUE, Uint
+from ethereum_types.numeric import U256, Uint
+
 from ethereum.utils.numeric import get_sign
 
 from .. import Evm
@@ -51,7 +52,7 @@ def add(evm: Evm) -> None:
     push(evm.stack, result)
 
     # PROGRAM COUNTER
-    evm.pc += 1
+    evm.pc += Uint(1)
 
 
 def sub(evm: Evm) -> None:
@@ -78,7 +79,7 @@ def sub(evm: Evm) -> None:
     push(evm.stack, result)
 
     # PROGRAM COUNTER
-    evm.pc += 1
+    evm.pc += Uint(1)
 
 
 def mul(evm: Evm) -> None:
@@ -105,7 +106,7 @@ def mul(evm: Evm) -> None:
     push(evm.stack, result)
 
     # PROGRAM COUNTER
-    evm.pc += 1
+    evm.pc += Uint(1)
 
 
 def div(evm: Evm) -> None:
@@ -135,7 +136,10 @@ def div(evm: Evm) -> None:
     push(evm.stack, quotient)
 
     # PROGRAM COUNTER
-    evm.pc += 1
+    evm.pc += Uint(1)
+
+
+U255_CEIL_VALUE = 2**255
 
 
 def sdiv(evm: Evm) -> None:
@@ -168,7 +172,7 @@ def sdiv(evm: Evm) -> None:
     push(evm.stack, U256.from_signed(quotient))
 
     # PROGRAM COUNTER
-    evm.pc += 1
+    evm.pc += Uint(1)
 
 
 def mod(evm: Evm) -> None:
@@ -198,7 +202,7 @@ def mod(evm: Evm) -> None:
     push(evm.stack, remainder)
 
     # PROGRAM COUNTER
-    evm.pc += 1
+    evm.pc += Uint(1)
 
 
 def smod(evm: Evm) -> None:
@@ -228,7 +232,7 @@ def smod(evm: Evm) -> None:
     push(evm.stack, U256.from_signed(remainder))
 
     # PROGRAM COUNTER
-    evm.pc += 1
+    evm.pc += Uint(1)
 
 
 def addmod(evm: Evm) -> None:
@@ -259,7 +263,7 @@ def addmod(evm: Evm) -> None:
     push(evm.stack, result)
 
     # PROGRAM COUNTER
-    evm.pc += 1
+    evm.pc += Uint(1)
 
 
 def mulmod(evm: Evm) -> None:
@@ -290,7 +294,7 @@ def mulmod(evm: Evm) -> None:
     push(evm.stack, result)
 
     # PROGRAM COUNTER
-    evm.pc += 1
+    evm.pc += Uint(1)
 
 
 def exp(evm: Evm) -> None:
@@ -312,18 +316,18 @@ def exp(evm: Evm) -> None:
     # This is equivalent to 1 + floor(log(y, 256)). But in python the log
     # function is inaccurate leading to wrong results.
     exponent_bits = exponent.bit_length()
-    exponent_bytes = (exponent_bits + 7) // 8
+    exponent_bytes = (exponent_bits + Uint(7)) // Uint(8)
     charge_gas(
         evm, GAS_EXPONENTIATION + GAS_EXPONENTIATION_PER_BYTE * exponent_bytes
     )
 
     # OPERATION
-    result = U256(pow(base, exponent, U256_CEIL_VALUE))
+    result = U256(pow(base, exponent, Uint(U256.MAX_VALUE) + Uint(1)))
 
     push(evm.stack, result)
 
     # PROGRAM COUNTER
-    evm.pc += 1
+    evm.pc += Uint(1)
 
 
 def signextend(evm: Evm) -> None:
@@ -345,7 +349,7 @@ def signextend(evm: Evm) -> None:
     charge_gas(evm, GAS_LOW)
 
     # OPERATION
-    if byte_num > 31:
+    if byte_num > U256(31):
         # Can't extend any further
         result = value
     else:
@@ -358,7 +362,7 @@ def signextend(evm: Evm) -> None:
         if sign_bit == 0:
             result = U256.from_be_bytes(value_bytes)
         else:
-            num_bytes_prepend = 32 - (byte_num + 1)
+            num_bytes_prepend = U256(32) - (byte_num + U256(1))
             result = U256.from_be_bytes(
                 bytearray([0xFF] * num_bytes_prepend) + value_bytes
             )
@@ -366,4 +370,4 @@ def signextend(evm: Evm) -> None:
     push(evm.stack, result)
 
     # PROGRAM COUNTER
-    evm.pc += 1
+    evm.pc += Uint(1)

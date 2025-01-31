@@ -12,7 +12,7 @@ Introduction
 Implementations of the EVM control flow instructions.
 """
 
-from ethereum.base_types import U256, Uint
+from ethereum_types.numeric import U256, Uint
 
 from ...vm.gas import GAS_BASE, GAS_HIGH, GAS_JUMPDEST, GAS_MID, charge_gas
 from .. import Evm
@@ -39,7 +39,7 @@ def stop(evm: Evm) -> None:
     evm.running = False
 
     # PROGRAM COUNTER
-    evm.pc += 1
+    evm.pc += Uint(1)
 
 
 def jump(evm: Evm) -> None:
@@ -88,14 +88,14 @@ def jumpi(evm: Evm) -> None:
 
     # OPERATION
     if conditional_value == 0:
-        destination = evm.pc + 1
+        destination = evm.pc + Uint(1)
     elif jump_dest not in evm.valid_jump_destinations:
         raise InvalidJumpDestError
     else:
         destination = jump_dest
 
     # PROGRAM COUNTER
-    evm.pc = Uint(destination)
+    evm.pc = destination
 
 
 def pc(evm: Evm) -> None:
@@ -119,7 +119,7 @@ def pc(evm: Evm) -> None:
     push(evm.stack, U256(evm.pc))
 
     # PROGRAM COUNTER
-    evm.pc += 1
+    evm.pc += Uint(1)
 
 
 def gas_left(evm: Evm) -> None:
@@ -143,7 +143,7 @@ def gas_left(evm: Evm) -> None:
     push(evm.stack, U256(evm.gas_left))
 
     # PROGRAM COUNTER
-    evm.pc += 1
+    evm.pc += Uint(1)
 
 
 def jumpdest(evm: Evm) -> None:
@@ -168,4 +168,4 @@ def jumpdest(evm: Evm) -> None:
     pass
 
     # PROGRAM COUNTER
-    evm.pc += 1
+    evm.pc += Uint(1)

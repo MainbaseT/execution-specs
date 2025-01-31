@@ -5,11 +5,20 @@ Utilities for the EVM tools
 import json
 import logging
 import sys
-from typing import Any, Callable, Dict, List, Optional, Tuple, TypeVar
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    TypeVar,
+)
 
 import coincurve
+from ethereum_types.numeric import U64, U256, Uint
 
-from ethereum.base_types import U64, U256, Uint
 from ethereum.crypto.hash import Hash32
 from ethereum_spec_tools.forks import Hardfork
 
@@ -82,7 +91,9 @@ def ensure_success(f: Callable, *args: Any) -> Any:
         raise FatalException(e)
 
 
-def get_module_name(forks: Any, options: Any, stdin: Any) -> Tuple[str, int]:
+def get_module_name(
+    forks: Sequence[Hardfork], options: Any, stdin: Any
+) -> Tuple[str, int]:
     """
     Get the module name and the fork block for the given state fork.
     """
@@ -106,7 +117,7 @@ def get_module_name(forks: Any, options: Any, stdin: Any) -> Tuple[str, int]:
         block_number = parse_hex_or_int(data["currentNumber"], Uint)
 
         for fork, fork_block in exception_config["fork_blocks"]:
-            if block_number >= fork_block:
+            if block_number >= Uint(fork_block):
                 current_fork_module = fork
                 current_fork_block = fork_block
 

@@ -8,8 +8,10 @@ import os
 from functools import partial
 from typing import Any, TextIO
 
-from ethereum import rlp, trace
-from ethereum.base_types import U64, U256, Uint
+from ethereum_rlp import rlp
+from ethereum_types.numeric import U64, U256, Uint
+
+from ethereum import trace
 from ethereum.crypto.hash import keccak256
 from ethereum.exceptions import EthereumException, InvalidBlock
 from ethereum_spec_tools.forks import Hardfork
@@ -261,7 +263,7 @@ class T8N(Load):
         state = self.alloc.state
 
         miner_reward = self.BLOCK_REWARD + (
-            len(ommers) * (self.BLOCK_REWARD // 32)
+            U256(len(ommers)) * (self.BLOCK_REWARD // U256(32))
         )
         self.fork.create_ether(state, coinbase, miner_reward)
         touched_accounts = [coinbase]
@@ -384,9 +386,9 @@ class T8N(Load):
             except EthereumException as e:
                 # The tf tools expects some non-blank error message
                 # even in case e is blank.
-                self.txs.rejected_txs[tx_idx] = f"Failed transaction: {str(e)}"
+                self.txs.rejected_txs[tx_idx] = f"Failed transaction: {e!r}"
                 self.restore_state()
-                self.logger.warning(f"Transaction {tx_idx} failed: {str(e)}")
+                self.logger.warning(f"Transaction {tx_idx} failed: {e!r}")
             else:
                 self.txs.add_transaction(tx)
                 gas_consumed = process_transaction_return[0]

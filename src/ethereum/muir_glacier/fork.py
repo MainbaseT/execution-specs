@@ -15,14 +15,18 @@ Entry point for the Ethereum specification.
 from dataclasses import dataclass
 from typing import List, Optional, Set, Tuple
 
-from ethereum.base_types import Bytes0
-from ethereum.crypto.elliptic_curve import SECP256K1N, secp256k1_recover
+from ethereum_rlp import rlp
+from ethereum_types.bytes import Bytes
+from ethereum_types.numeric import U64, U256, Uint
+
 from ethereum.crypto.hash import Hash32, keccak256
 from ethereum.ethash import dataset_size, generate_cache, hashimoto_light
-from ethereum.exceptions import InvalidBlock
+from ethereum.exceptions import (
+    EthereumException,
+    InvalidBlock,
+    InvalidSenderError,
+)
 
-from .. import rlp
-from ..base_types import U64, U256, U256_CEIL_VALUE, Bytes, Uint
 from . import vm
 from .blocks import Block, Header, Log, Receipt
 from .bloom import logs_bloom
@@ -38,21 +42,20 @@ from .state import (
     state_root,
 )
 from .transactions import (
-    TX_BASE_COST,
-    TX_CREATE_COST,
-    TX_DATA_COST_PER_NON_ZERO,
-    TX_DATA_COST_PER_ZERO,
     Transaction,
+    calculate_intrinsic_cost,
+    recover_sender,
+    validate_transaction,
 )
 from .trie import Trie, root, trie_set
 from .utils.message import prepare_message
 from .vm.interpreter import process_message_call
 
 BLOCK_REWARD = U256(2 * 10**18)
-GAS_LIMIT_ADJUSTMENT_FACTOR = 1024
-GAS_LIMIT_MINIMUM = 5000
+GAS_LIMIT_ADJUSTMENT_FACTOR = Uint(1024)
+GAS_LIMIT_MINIMUM = Uint(5000)
 MINIMUM_DIFFICULTY = Uint(131072)
-MAX_OMMER_DEPTH = 6
+MAX_OMMER_DEPTH = Uint(6)
 BOMB_DELAY_BLOCKS = 9000000
 EMPTY_OMMER_HASH = keccak256(rlp.encode([]))
 
@@ -168,7 +171,9 @@ def state_transition(chain: BlockChain, block: Block) -> None:
         chain.chain_id,
     )
     if apply_body_output.block_gas_used != block.header.gas_used:
-        raise InvalidBlock
+        raise InvalidBlock(
+            f"{apply_body_output.block_gas_used} != {block.header.gas_used}"
+        )
     if apply_body_output.transactions_root != block.header.transactions_root:
         raise InvalidBlock
     if apply_body_output.state_root != block.header.state_root:
@@ -206,7 +211,7 @@ def validate_header(header: Header, parent_header: Header) -> None:
     parent_has_ommers = parent_header.ommers_hash != EMPTY_OMMER_HASH
     if header.timestamp <= parent_header.timestamp:
         raise InvalidBlock
-    if header.number != parent_header.number + 1:
+    if header.number != parent_header.number + Uint(1):
         raise InvalidBlock
     if not check_gas_limit(header.gas_limit, parent_header.gas_limit):
         raise InvalidBlock
@@ -269,7 +274,7 @@ def generate_header_hash_for_pow(header: Header) -> Hash32:
         header.extra_data,
     )
 
-    return rlp.rlp_hash(header_data_without_pow_artefacts)
+    return keccak256(rlp.encode(header_data_without_pow_artefacts))
 
 
 def validate_proof_of_work(header: Header) -> None:
@@ -296,7 +301,9 @@ def validate_proof_of_work(header: Header) -> None:
     )
     if mix_digest != header.mix_digest:
         raise InvalidBlock
-    if Uint.from_be_bytes(result) > (U256_CEIL_VALUE // header.difficulty):
+
+    limit = Uint(U256.MAX_VALUE) + Uint(1)
+    if Uint.from_be_bytes(result) > (limit // header.difficulty):
         raise InvalidBlock
 
 
@@ -336,7 +343,7 @@ def check_transaction(
 
 def make_receipt(
     tx: Transaction,
-    error: Optional[Exception],
+    error: Optional[EthereumException],
     cumulative_gas_used: Uint,
     logs: Tuple[Log, ...],
 ) -> Receipt:
@@ -532,8 +539,8 @@ def validate_ommers(
     chain :
         History and current state.
     """
-    block_hash = rlp.rlp_hash(block_header)
-    if rlp.rlp_hash(ommers) != block_header.ommers_hash:
+    block_hash = keccak256(rlp.encode(block_header))
+    if keccak256(rlp.encode(ommers)) != block_header.ommers_hash:
         raise InvalidBlock
 
     if len(ommers) == 0:
@@ -542,7 +549,7 @@ def validate_ommers(
 
     # Check that each ommer satisfies the constraints of a header
     for ommer in ommers:
-        if 1 > ommer.number or ommer.number >= block_header.number:
+        if Uint(1) > ommer.number or ommer.number >= block_header.number:
             raise InvalidBlock
         ommer_parent_header = chain.blocks[
             -(block_header.number - ommer.number) - 1
@@ -551,18 +558,19 @@ def validate_ommers(
     if len(ommers) > 2:
         raise InvalidBlock
 
-    ommers_hashes = [rlp.rlp_hash(ommer) for ommer in ommers]
+    ommers_hashes = [keccak256(rlp.encode(ommer)) for ommer in ommers]
     if len(ommers_hashes) != len(set(ommers_hashes)):
         raise InvalidBlock
 
-    recent_canonical_blocks = chain.blocks[-(MAX_OMMER_DEPTH + 1) :]
+    recent_canonical_blocks = chain.blocks[-(MAX_OMMER_DEPTH + Uint(1)) :]
     recent_canonical_block_hashes = {
-        rlp.rlp_hash(block.header) for block in recent_canonical_blocks
+        keccak256(rlp.encode(block.header))
+        for block in recent_canonical_blocks
     }
     recent_ommers_hashes: Set[Hash32] = set()
     for block in recent_canonical_blocks:
         recent_ommers_hashes = recent_ommers_hashes.union(
-            {rlp.rlp_hash(ommer) for ommer in block.ommers}
+            {keccak256(rlp.encode(ommer)) for ommer in block.ommers}
         )
 
     for ommer_index, ommer in enumerate(ommers):
@@ -577,7 +585,7 @@ def validate_ommers(
         # Ommer age with respect to the current block. For example, an age of
         # 1 indicates that the ommer is a sibling of previous block.
         ommer_age = block_header.number - ommer.number
-        if 1 > ommer_age or ommer_age > MAX_OMMER_DEPTH:
+        if Uint(1) > ommer_age or ommer_age > MAX_OMMER_DEPTH:
             raise InvalidBlock
         if ommer.parent_hash not in recent_canonical_block_hashes:
             raise InvalidBlock
@@ -616,19 +624,20 @@ def pay_rewards(
     ommers :
         List of ommers mentioned in the current block.
     """
-    miner_reward = BLOCK_REWARD + (len(ommers) * (BLOCK_REWARD // 32))
+    ommer_count = U256(len(ommers))
+    miner_reward = BLOCK_REWARD + (ommer_count * (BLOCK_REWARD // U256(32)))
     create_ether(state, coinbase, miner_reward)
 
     for ommer in ommers:
         # Ommer age with respect to the current block.
         ommer_age = U256(block_number - ommer.number)
-        ommer_miner_reward = ((8 - ommer_age) * BLOCK_REWARD) // 8
+        ommer_miner_reward = ((U256(8) - ommer_age) * BLOCK_REWARD) // U256(8)
         create_ether(state, ommer.coinbase, ommer_miner_reward)
 
 
 def process_transaction(
     env: vm.Environment, tx: Transaction
-) -> Tuple[Uint, Tuple[Log, ...], Optional[Exception]]:
+) -> Tuple[Uint, Tuple[Log, ...], Optional[EthereumException]]:
     """
     Execute a transaction against the provided environment.
 
@@ -663,15 +672,15 @@ def process_transaction(
     gas_fee = tx.gas * tx.gas_price
     if sender_account.nonce != tx.nonce:
         raise InvalidBlock
-    if sender_account.balance < gas_fee + tx.value:
+    if Uint(sender_account.balance) < gas_fee + Uint(tx.value):
         raise InvalidBlock
     if sender_account.code != bytearray():
-        raise InvalidBlock
+        raise InvalidSenderError("not EOA")
 
     gas = tx.gas - calculate_intrinsic_cost(tx)
     increment_nonce(env.state, sender)
-    sender_balance_after_gas_fee = sender_account.balance - gas_fee
-    set_account_balance(env.state, sender, sender_balance_after_gas_fee)
+    sender_balance_after_gas_fee = Uint(sender_account.balance) - gas_fee
+    set_account_balance(env.state, sender, U256(sender_balance_after_gas_fee))
 
     message = prepare_message(
         sender,
@@ -685,21 +694,21 @@ def process_transaction(
     output = process_message_call(message, env)
 
     gas_used = tx.gas - output.gas_left
-    gas_refund = min(gas_used // 2, output.refund_counter)
+    gas_refund = min(gas_used // Uint(2), Uint(output.refund_counter))
     gas_refund_amount = (output.gas_left + gas_refund) * tx.gas_price
     transaction_fee = (tx.gas - output.gas_left - gas_refund) * tx.gas_price
     total_gas_used = gas_used - gas_refund
 
     # refund gas
-    sender_balance_after_refund = (
-        get_account(env.state, sender).balance + gas_refund_amount
-    )
+    sender_balance_after_refund = get_account(
+        env.state, sender
+    ).balance + U256(gas_refund_amount)
     set_account_balance(env.state, sender, sender_balance_after_refund)
 
     # transfer miner fees
-    coinbase_balance_after_mining_fee = (
-        get_account(env.state, env.coinbase).balance + transaction_fee
-    )
+    coinbase_balance_after_mining_fee = get_account(
+        env.state, env.coinbase
+    ).balance + U256(transaction_fee)
     if coinbase_balance_after_mining_fee != 0:
         set_account_balance(
             env.state, env.coinbase, coinbase_balance_after_mining_fee
@@ -715,173 +724,6 @@ def process_transaction(
             destroy_account(env.state, address)
 
     return total_gas_used, output.logs, output.error
-
-
-def validate_transaction(tx: Transaction) -> bool:
-    """
-    Verifies a transaction.
-
-    The gas in a transaction gets used to pay for the intrinsic cost of
-    operations, therefore if there is insufficient gas then it would not
-    be possible to execute a transaction and it will be declared invalid.
-
-    Additionally, the nonce of a transaction must not equal or exceed the
-    limit defined in `EIP-2681 <https://eips.ethereum.org/EIPS/eip-2681>`_.
-    In practice, defining the limit as ``2**64-1`` has no impact because
-    sending ``2**64-1`` transactions is improbable. It's not strictly
-    impossible though, ``2**64-1`` transactions is the entire capacity of the
-    Ethereum blockchain at 2022 gas limits for a little over 22 years.
-
-    Parameters
-    ----------
-    tx :
-        Transaction to validate.
-
-    Returns
-    -------
-    verified : `bool`
-        True if the transaction can be executed, or False otherwise.
-    """
-    return calculate_intrinsic_cost(tx) <= tx.gas and tx.nonce < 2**64 - 1
-
-
-def calculate_intrinsic_cost(tx: Transaction) -> Uint:
-    """
-    Calculates the gas that is charged before execution is started.
-
-    The intrinsic cost of the transaction is charged before execution has
-    begun. Functions/operations in the EVM cost money to execute so this
-    intrinsic cost is for the operations that need to be paid for as part of
-    the transaction. Data transfer, for example, is part of this intrinsic
-    cost. It costs ether to send data over the wire and that ether is
-    accounted for in the intrinsic cost calculated in this function. This
-    intrinsic cost must be calculated and paid for before execution in order
-    for all operations to be implemented.
-
-    Parameters
-    ----------
-    tx :
-        Transaction to compute the intrinsic cost of.
-
-    Returns
-    -------
-    verified : `ethereum.base_types.Uint`
-        The intrinsic cost of the transaction.
-    """
-    data_cost = 0
-
-    for byte in tx.data:
-        if byte == 0:
-            data_cost += TX_DATA_COST_PER_ZERO
-        else:
-            data_cost += TX_DATA_COST_PER_NON_ZERO
-
-    if tx.to == Bytes0(b""):
-        create_cost = TX_CREATE_COST
-    else:
-        create_cost = 0
-
-    return Uint(TX_BASE_COST + data_cost + create_cost)
-
-
-def recover_sender(chain_id: U64, tx: Transaction) -> Address:
-    """
-    Extracts the sender address from a transaction.
-
-    The v, r, and s values are the three parts that make up the signature
-    of a transaction. In order to recover the sender of a transaction the two
-    components needed are the signature (``v``, ``r``, and ``s``) and the
-    signing hash of the transaction. The sender's public key can be obtained
-    with these two values and therefore the sender address can be retrieved.
-
-    Parameters
-    ----------
-    tx :
-        Transaction of interest.
-    chain_id :
-        ID of the executing chain.
-
-    Returns
-    -------
-    sender : `ethereum.fork_types.Address`
-        The address of the account that signed the transaction.
-    """
-    v, r, s = tx.v, tx.r, tx.s
-    if 0 >= r or r >= SECP256K1N:
-        raise InvalidBlock
-    if 0 >= s or s > SECP256K1N // 2:
-        raise InvalidBlock
-
-    if v == 27 or v == 28:
-        public_key = secp256k1_recover(r, s, v - 27, signing_hash_pre155(tx))
-    else:
-        if v != 35 + chain_id * 2 and v != 36 + chain_id * 2:
-            raise InvalidBlock
-        public_key = secp256k1_recover(
-            r, s, v - 35 - chain_id * 2, signing_hash_155(tx, chain_id)
-        )
-    return Address(keccak256(public_key)[12:32])
-
-
-def signing_hash_pre155(tx: Transaction) -> Hash32:
-    """
-    Compute the hash of a transaction used in a legacy (pre EIP 155) signature.
-
-    Parameters
-    ----------
-    tx :
-        Transaction of interest.
-
-    Returns
-    -------
-    hash : `ethereum.crypto.hash.Hash32`
-        Hash of the transaction.
-    """
-    return keccak256(
-        rlp.encode(
-            (
-                tx.nonce,
-                tx.gas_price,
-                tx.gas,
-                tx.to,
-                tx.value,
-                tx.data,
-            )
-        )
-    )
-
-
-def signing_hash_155(tx: Transaction, chain_id: U64) -> Hash32:
-    """
-    Compute the hash of a transaction used in a EIP 155 signature.
-
-    Parameters
-    ----------
-    tx :
-        Transaction of interest.
-    chain_id :
-        The id of the current chain.
-
-    Returns
-    -------
-    hash : `ethereum.crypto.hash.Hash32`
-        Hash of the transaction.
-    """
-    return keccak256(
-        rlp.encode(
-            (
-                tx.nonce,
-                tx.gas_price,
-                tx.gas,
-                tx.to,
-                tx.value,
-                tx.data,
-                chain_id,
-                Uint(0),
-                Uint(0),
-            )
-        )
-    )
 
 
 def compute_header_hash(header: Header) -> Hash32:
@@ -1025,4 +867,4 @@ def calculate_block_difficulty(
     # Some clients raise the difficulty to `MINIMUM_DIFFICULTY` prior to adding
     # the bomb. This bug does not matter because the difficulty is always much
     # greater than `MINIMUM_DIFFICULTY` on Mainnet.
-    return Uint(max(difficulty, MINIMUM_DIFFICULTY))
+    return Uint(max(difficulty, int(MINIMUM_DIFFICULTY)))

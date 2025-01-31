@@ -3,8 +3,9 @@ import os
 from importlib import import_module
 from typing import Any, List
 
-from ethereum import rlp
-from ethereum.base_types import U64, U256, Uint
+from ethereum_rlp import rlp
+from ethereum_types.numeric import U64, U256, Uint
+
 from ethereum.crypto.hash import keccak256
 from ethereum.utils.hexadecimal import (
     hex_to_bytes,
@@ -110,7 +111,7 @@ class VmTestLoader:
             "target": self.hex_to_address(json_data["exec"]["address"]),
             "data": hex_to_bytes(json_data["exec"]["data"]),
             "value": hex_to_u256(json_data["exec"]["value"]),
-            "gas": hex_to_u256(json_data["exec"]["gas"]),
+            "gas": hex_to_uint(json_data["exec"]["gas"]),
             "depth": Uint(0),
             "env": env,
             "expected_gas_left": hex_to_u256(json_data.get("gas", "0x64")),
@@ -200,7 +201,7 @@ class VmTestLoader:
         """
         # dummy account balance is the min balance needed plus 1 eth for gas
         # cost
-        account_balance = hex_to_uint(min_balance) + (10**18)
+        account_balance = hex_to_uint(min_balance) + Uint(10**18)
 
         return {
             "balance": hex(account_balance),

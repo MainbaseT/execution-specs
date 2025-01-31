@@ -2,10 +2,11 @@ from functools import partial
 from typing import Dict
 
 import pytest
+from ethereum_rlp import rlp
+from ethereum_types.bytes import Bytes, Bytes8, Bytes32
+from ethereum_types.numeric import U256, Uint
 
-from ethereum import rlp
-from ethereum.base_types import U256, Bytes, Bytes8, Bytes32, Uint
-from ethereum.crypto.hash import Hash32
+from ethereum.crypto.hash import Hash32, keccak256
 from ethereum.exceptions import InvalidBlock
 from tests.helpers import TEST_FIXTURES
 from tests.helpers.load_state_tests import (
@@ -131,7 +132,7 @@ def test_transaction_with_insufficient_balance_for_value() -> None:
         "0b22b0d49035cb4f8a969d584f36126e0ac6996b9db7264ac5a192b8698177eb"
     )
 
-    assert rlp.rlp_hash(genesis_header) == genesis_header_hash
+    assert keccak256(rlp.encode(genesis_header)) == genesis_header_hash
 
     genesis_block = FIXTURES_LOADER.fork.Block(
         genesis_header,
@@ -155,8 +156,8 @@ def test_transaction_with_insufficient_balance_for_value() -> None:
 
     tx = FIXTURES_LOADER.fork.Transaction(
         nonce=U256(0x00),
-        gas_price=U256(1000),
-        gas=U256(150000),
+        gas_price=Uint(1000),
+        gas=Uint(150000),
         to=FIXTURES_LOADER.fork.hex_to_address(
             "c94f5374fce5edbc8e2a8697c15331677e6ebf0b"
         ),
@@ -172,7 +173,7 @@ def test_transaction_with_insufficient_balance_for_value() -> None:
         origin=address,
         block_hashes=[genesis_header_hash],
         coinbase=genesis_block.header.coinbase,
-        number=genesis_block.header.number + 1,
+        number=genesis_block.header.number + Uint(1),
         gas_limit=genesis_block.header.gas_limit,
         gas_price=tx.gas_price,
         time=genesis_block.header.timestamp,

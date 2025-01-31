@@ -26,7 +26,7 @@ ETHEREUM_SPEC_TESTS_PATH = TEST_FIXTURES["execution_spec_tests"][
 
 
 # Run state tests
-test_dir = f"{ETHEREUM_TESTS_PATH}/BlockchainTests/"
+test_dir = f"{ETHEREUM_TESTS_PATH}/LegacyTests/Cancun/BlockchainTests/"
 
 SLOW_TESTS = (
     # GeneralStateTests
@@ -59,15 +59,6 @@ IGNORE_TESTS = (
     "bcForgedTest",
     "bcMultiChainTest",
     "GasLimitHigherThan2p63m1_Shanghai",
-    # TODO: The below tests are being ignored due to a bug in
-    # upstream repo. They should be removed from the ignore list
-    # once the bug is resolved
-    # See: https://github.com/ethereum/execution-spec-tests/pull/134
-    "Pyspecs/vm/chain_id.json",
-    "Pyspecs/vm/dup.json",
-    "Pyspecs/example/yul.json",
-    "Pyspecs/eips/warm_coinbase_gas_usage.json",
-    "Pyspecs/eips/warm_coinbase_call_out_of_gas.json",
 )
 
 # All tests that recursively create a large number of frames (50000)

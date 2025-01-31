@@ -13,7 +13,8 @@ Message specific functions used in this homestead version of specification.
 """
 from typing import Optional, Union
 
-from ethereum.base_types import U256, Bytes, Bytes0, Uint
+from ethereum_types.bytes import Bytes, Bytes0
+from ethereum_types.numeric import U256, Uint
 
 from ..fork_types import Address
 from ..state import get_account
@@ -63,7 +64,7 @@ def prepare_message(
     if isinstance(target, Bytes0):
         current_target = compute_contract_address(
             caller,
-            get_account(env.state, caller).nonce - U256(1),
+            get_account(env.state, caller).nonce - Uint(1),
         )
         msg_data = Bytes(b"")
         code = data

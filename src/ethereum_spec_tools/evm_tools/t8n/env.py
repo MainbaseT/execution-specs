@@ -5,8 +5,10 @@ import json
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from ethereum import rlp
-from ethereum.base_types import U64, U256, Bytes32, Uint
+from ethereum_rlp import rlp
+from ethereum_types.bytes import Bytes32
+from ethereum_types.numeric import U64, U256, Uint
+
 from ethereum.crypto.hash import Hash32, keccak256
 from ethereum.utils.byte import left_pad_zero_bytes
 from ethereum.utils.hexadecimal import hex_to_bytes
@@ -150,11 +152,6 @@ class Env:
                     self.parent_base_fee_per_gas,
                 ]
 
-                # TODO: See if this explicit check can be removed. See
-                # https://github.com/ethereum/execution-specs/issues/740
-                if t8n.fork.fork_module == "london":
-                    parameters.append(t8n.fork_block == self.block_number)
-
                 self.base_fee_per_gas = t8n.fork.calculate_base_fee_per_gas(
                     *parameters
                 )
@@ -213,7 +210,7 @@ class Env:
             self.parent_difficulty = parse_hex_or_int(
                 data["parentDifficulty"], Uint
             )
-            args = [
+            args: List[object] = [
                 self.block_number,
                 self.block_timestamp,
                 self.parent_timestamp,
@@ -240,7 +237,7 @@ class Env:
         # Read the block hashes
         block_hashes: List[Any] = []
         # Store a maximum of 256 block hashes.
-        max_blockhash_count = min(256, self.block_number)
+        max_blockhash_count = min(Uint(256), self.block_number)
         for number in range(
             self.block_number - max_blockhash_count, self.block_number
         ):

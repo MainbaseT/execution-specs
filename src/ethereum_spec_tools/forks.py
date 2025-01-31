@@ -24,6 +24,8 @@ from typing import (
     TypeVar,
 )
 
+from ethereum_types.numeric import U256, Uint
+
 if TYPE_CHECKING:
     from ethereum.fork_criteria import ForkCriteria
 
@@ -88,8 +90,15 @@ class Hardfork:
             # Use find_spec() to find the module specification.
             if isinstance(pkg.module_finder, importlib.abc.MetaPathFinder):
                 found = pkg.module_finder.find_spec(pkg.name, None)
-            else:
+            elif isinstance(pkg.module_finder, importlib.abc.PathEntryFinder):
                 found = pkg.module_finder.find_spec(pkg.name)
+            else:
+                raise Exception(
+                    "unsupported module_finder "
+                    f"`{type(pkg.module_finder).__name__}` while finding spec "
+                    f"for `{pkg.name}`"
+                )
+
             if not found:
                 raise Exception(f"unable to find module spec for {pkg.name}")
 
@@ -184,7 +193,7 @@ class Hardfork:
         return criteria
 
     @property
-    def block(self) -> int:
+    def block(self) -> Uint:
         """
         Block number of the first block in this hard fork.
         """
@@ -196,7 +205,7 @@ class Hardfork:
             raise AttributeError
 
     @property
-    def timestamp(self) -> int:
+    def timestamp(self) -> U256:
         """
         Block number of the first block in this hard fork.
         """
@@ -207,7 +216,7 @@ class Hardfork:
         else:
             raise AttributeError
 
-    def has_activated(self, block_number: int, timestamp: int) -> bool:
+    def has_activated(self, block_number: Uint, timestamp: U256) -> bool:
         """
         Check whether this fork has activated.
         """
@@ -274,15 +283,6 @@ class Hardfork:
         fork.
         """
         return importlib.import_module(self.mod.__name__ + "." + name)
-
-    def optimized_module(self, name: str) -> Any:
-        """
-        Import if necessary, and return the given module belonging to this hard
-        fork's optimized implementation.
-        """
-        assert self.mod.__name__.startswith("ethereum.")
-        module = "ethereum_optimized" + self.mod.__name__[8:] + "." + name
-        return importlib.import_module(module)
 
     def iter_modules(self) -> Iterator[ModuleInfo]:
         """

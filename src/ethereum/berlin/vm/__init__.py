@@ -16,8 +16,11 @@ The abstract computer which runs the code stored in an
 from dataclasses import dataclass
 from typing import List, Optional, Set, Tuple, Union
 
-from ethereum.base_types import U64, U256, Bytes, Bytes0, Bytes32, Uint
+from ethereum_types.bytes import Bytes, Bytes0, Bytes32
+from ethereum_types.numeric import U64, U256, Uint
+
 from ethereum.crypto.hash import Hash32
+from ethereum.exceptions import EthereumException
 
 from ..blocks import Log
 from ..fork_types import Address
@@ -88,7 +91,7 @@ class Evm:
     accounts_to_delete: Set[Address]
     touched_accounts: Set[Address]
     return_data: Bytes
-    error: Optional[Exception]
+    error: Optional[EthereumException]
     accessed_addresses: Set[Address]
     accessed_storage_keys: Set[Tuple[Address, Bytes32]]
 

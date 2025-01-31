@@ -1,13 +1,17 @@
 """
 The module implements the raw EVM tracer for t8n.
 """
+
 import json
 import os
 from contextlib import ExitStack
 from dataclasses import asdict, dataclass, is_dataclass
 from typing import List, Optional, Protocol, TextIO, Union, runtime_checkable
 
-from ethereum.base_types import U256, Bytes, Uint
+from ethereum_types.bytes import Bytes
+from ethereum_types.numeric import U256, Uint
+
+from ethereum.exceptions import EthereumException
 from ethereum.trace import (
     EvmStop,
     GasAndRefund,
@@ -58,7 +62,7 @@ class FinalTrace:
     error: Optional[str] = None
 
     def __init__(
-        self, gas_used: int, output: bytes, error: Optional[Exception]
+        self, gas_used: int, output: bytes, error: Optional[EthereumException]
     ) -> None:
         self.output = output.hex()
         self.gasUsed = hex(gas_used)
@@ -166,7 +170,7 @@ def evm_trace(
         evm.env.traces.append(final_trace)
     elif isinstance(event, PrecompileStart):
         new_trace = Trace(
-            pc=evm.pc,
+            pc=int(evm.pc),
             op="0x" + event.address.hex().lstrip("0"),
             gas=hex(evm.gas_left),
             gasCost="0x0",
@@ -174,7 +178,7 @@ def evm_trace(
             memSize=len_memory,
             stack=stack,
             returnData=return_data,
-            depth=evm.message.depth + 1,
+            depth=int(evm.message.depth) + 1,
             refund=refund_counter,
             opName="0x" + event.address.hex().lstrip("0"),
             precompile=True,
@@ -191,7 +195,7 @@ def evm_trace(
         if op == "InvalidOpcode":
             op = "Invalid"
         new_trace = Trace(
-            pc=evm.pc,
+            pc=int(evm.pc),
             op=op,
             gas=hex(evm.gas_left),
             gasCost="0x0",
@@ -199,7 +203,7 @@ def evm_trace(
             memSize=len_memory,
             stack=stack,
             returnData=return_data,
-            depth=evm.message.depth + 1,
+            depth=int(evm.message.depth) + 1,
             refund=refund_counter,
             opName=str(event.op).split(".")[-1],
         )
@@ -233,7 +237,7 @@ def evm_trace(
                 ) from event.error
 
             new_trace = Trace(
-                pc=evm.pc,
+                pc=int(evm.pc),
                 op=event.error.code,
                 gas=hex(evm.gas_left),
                 gasCost="0x0",
@@ -241,7 +245,7 @@ def evm_trace(
                 memSize=len_memory,
                 stack=stack,
                 returnData=return_data,
-                depth=evm.message.depth + 1,
+                depth=int(evm.message.depth) + 1,
                 refund=refund_counter,
                 opName="InvalidOpcode",
                 gasCostTraced=True,

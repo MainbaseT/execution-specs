@@ -5,8 +5,10 @@ import json
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Optional, Tuple
 
-from ethereum import rlp
-from ethereum.base_types import U64, Bytes, Uint
+from ethereum_rlp import rlp
+from ethereum_types.bytes import Bytes
+from ethereum_types.numeric import U64, U256, Uint
+
 from ethereum.crypto.hash import keccak256
 from ethereum.utils.hexadecimal import hex_to_bytes, hex_to_u256, hex_to_uint
 
@@ -252,32 +254,33 @@ class Txs:
         else:
             Transaction = t8n.fork.Transaction
 
+        v_addend: U256
         if isinstance(tx_decoded, Transaction):
             if t8n.fork.is_after_fork("ethereum.spurious_dragon"):
                 if protected:
                     signing_hash = t8n.fork.signing_hash_155(
                         tx_decoded, U64(1)
                     )
-                    v_addend = 37  # Assuming chain_id = 1
+                    v_addend = U256(37)  # Assuming chain_id = 1
                 else:
                     signing_hash = t8n.fork.signing_hash_pre155(tx_decoded)
-                    v_addend = 27
+                    v_addend = U256(27)
             else:
                 signing_hash = t8n.fork.signing_hash(tx_decoded)
-                v_addend = 27
+                v_addend = U256(27)
         elif isinstance(tx_decoded, t8n.fork.AccessListTransaction):
             signing_hash = t8n.fork.signing_hash_2930(tx_decoded)
-            v_addend = 0
+            v_addend = U256(0)
         elif isinstance(tx_decoded, t8n.fork.FeeMarketTransaction):
             signing_hash = t8n.fork.signing_hash_1559(tx_decoded)
-            v_addend = 0
+            v_addend = U256(0)
         elif isinstance(tx_decoded, t8n.fork.BlobTransaction):
             signing_hash = t8n.fork.signing_hash_4844(tx_decoded)
-            v_addend = 0
+            v_addend = U256(0)
         else:
             raise FatalException("Unknown transaction type")
 
-        r, s, y = secp256k1_sign(signing_hash, secret_key)
+        r, s, y = secp256k1_sign(signing_hash, int(secret_key))
         json_tx["r"] = hex(r)
         json_tx["s"] = hex(s)
         json_tx["v"] = hex(y + v_addend)

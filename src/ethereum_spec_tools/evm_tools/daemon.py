@@ -12,6 +12,7 @@ from io import StringIO, TextIOWrapper
 from socket import socket
 from threading import Thread
 from typing import Any, Tuple, Union
+from urllib.parse import parse_qs, urlparse
 
 
 def daemon_arguments(subparsers: argparse._SubParsersAction) -> None:
@@ -29,6 +30,12 @@ def daemon_arguments(subparsers: argparse._SubParsersAction) -> None:
 
 
 class _EvmToolHandler(BaseHTTPRequestHandler):
+    def log_request(
+        self, code: int | str = "-", size: int | str = "-"
+    ) -> None:
+        """Don't log requests"""
+        pass
+
     def do_POST(self) -> None:
         from . import main
 
@@ -52,13 +59,27 @@ class _EvmToolHandler(BaseHTTPRequestHandler):
             f"--state.reward={content['state']['reward']}",
         ]
 
+        query_string = urlparse(self.path).query
+        if query_string:
+            query = parse_qs(
+                query_string,
+                keep_blank_values=True,
+                strict_parsing=True,
+                errors="strict",
+            )
+            args += query.get("arg", [])
+
         self.send_response(200)
         self.send_header("Content-type", "application/octet-stream")
         self.end_headers()
 
-        out_wrapper = TextIOWrapper(self.wfile, encoding="utf-8")
-        main(args=args, out_file=out_wrapper, in_file=input)
-        out_wrapper.flush()
+        # `self.wfile` is missing the `name` attribute so it doesn't strictly
+        # satisfy the bounds for `TextIOWrapper`. Fortunately nothing uses
+        # `name` so far, so we can safely ignore the error.
+        with TextIOWrapper(
+            self.wfile, encoding="utf-8"  # type: ignore[type-var]
+        ) as out_wrapper:
+            main(args=args, out_file=out_wrapper, in_file=input)
 
 
 class _UnixSocketHttpServer(socketserver.UnixStreamServer):

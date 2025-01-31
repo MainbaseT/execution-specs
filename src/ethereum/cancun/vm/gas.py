@@ -14,7 +14,8 @@ EVM gas constants and calculators.
 from dataclasses import dataclass
 from typing import List, Tuple
 
-from ethereum.base_types import U64, U256, Uint
+from ethereum_types.numeric import U64, U256, Uint
+
 from ethereum.trace import GasAndRefund, evm_trace
 from ethereum.utils.numeric import ceil32, taylor_exponential
 
@@ -63,7 +64,7 @@ GAS_BLAKE2_PER_ROUND = Uint(1)
 GAS_COLD_SLOAD = Uint(2100)
 GAS_COLD_ACCOUNT_ACCESS = Uint(2600)
 GAS_WARM_ACCESS = Uint(100)
-GAS_INIT_CODE_WORD_COST = 2
+GAS_INIT_CODE_WORD_COST = Uint(2)
 GAS_BLOBHASH_OPCODE = Uint(3)
 GAS_POINT_EVALUATION = Uint(50000)
 
@@ -117,12 +118,12 @@ def charge_gas(evm: Evm, amount: Uint) -> None:
         The amount of gas the current operation requires.
 
     """
-    evm_trace(evm, GasAndRefund(amount))
+    evm_trace(evm, GasAndRefund(int(amount)))
 
     if evm.gas_left < amount:
         raise OutOfGasError
     else:
-        evm.gas_left -= U256(amount)
+        evm.gas_left -= amount
 
 
 def calculate_memory_gas_cost(size_in_bytes: Uint) -> Uint:
@@ -141,9 +142,9 @@ def calculate_memory_gas_cost(size_in_bytes: Uint) -> Uint:
     total_gas_cost : `ethereum.base_types.Uint`
         The gas cost for storing data in memory.
     """
-    size_in_words = ceil32(size_in_bytes) // 32
+    size_in_words = ceil32(size_in_bytes) // Uint(32)
     linear_cost = size_in_words * GAS_MEMORY
-    quadratic_cost = size_in_words**2 // 512
+    quadratic_cost = size_in_words ** Uint(2) // Uint(512)
     total_gas_cost = linear_cost + quadratic_cost
     try:
         return total_gas_cost
@@ -246,7 +247,7 @@ def max_message_call_gas(gas: Uint) -> Uint:
     max_allowed_message_call_gas: `ethereum.base_types.Uint`
         The maximum gas allowed for making the message-call.
     """
-    return gas - (gas // 64)
+    return gas - (gas // Uint(64))
 
 
 def init_code_cost(init_code_length: Uint) -> Uint:
@@ -265,7 +266,7 @@ def init_code_cost(init_code_length: Uint) -> Uint:
     init_code_gas: `ethereum.base_types.Uint`
         The gas to be charged for the init code.
     """
-    return GAS_INIT_CODE_WORD_COST * ceil32(init_code_length) // 32
+    return GAS_INIT_CODE_WORD_COST * ceil32(init_code_length) // Uint(32)
 
 
 def calculate_excess_blob_gas(parent_header: Header) -> U64:
@@ -283,9 +284,16 @@ def calculate_excess_blob_gas(parent_header: Header) -> U64:
     excess_blob_gas: `ethereum.base_types.U64`
         The excess blob gas for the current block.
     """
-    parent_blob_gas = (
-        parent_header.excess_blob_gas + parent_header.blob_gas_used
-    )
+    # At the fork block, these are defined as zero.
+    excess_blob_gas = U64(0)
+    blob_gas_used = U64(0)
+
+    if isinstance(parent_header, Header):
+        # After the fork block, read them from the parent header.
+        excess_blob_gas = parent_header.excess_blob_gas
+        blob_gas_used = parent_header.blob_gas_used
+
+    parent_blob_gas = excess_blob_gas + blob_gas_used
     if parent_blob_gas < TARGET_BLOB_GAS_PER_BLOCK:
         return U64(0)
     else:
@@ -307,7 +315,7 @@ def calculate_total_blob_gas(tx: Transaction) -> Uint:
         The total blob gas for the transaction.
     """
     if isinstance(tx, BlobTransaction):
-        return GAS_PER_BLOB * len(tx.blob_versioned_hashes)
+        return GAS_PER_BLOB * Uint(len(tx.blob_versioned_hashes))
     else:
         return Uint(0)
 

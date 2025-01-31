@@ -11,7 +11,8 @@ Introduction
 
 Implementation of the `MODEXP` precompiled contract.
 """
-from ethereum.base_types import U256, Bytes, Uint
+from ethereum_types.bytes import Bytes
+from ethereum_types.numeric import U256, Uint
 
 from ...vm import Evm
 from ...vm.gas import charge_gas
@@ -59,8 +60,8 @@ def modexp(evm: Evm) -> None:
     if modulus == 0:
         evm.output = Bytes(b"\x00") * modulus_length
     else:
-        evm.output = Uint(pow(base, exp, modulus)).to_bytes(
-            modulus_length, "big"
+        evm.output = pow(base, exp, modulus).to_bytes(
+            Uint(modulus_length), "big"
         )
 
 
@@ -84,12 +85,20 @@ def complexity(base_length: U256, modulus_length: U256) -> Uint:
         Complexity of performing the operation.
     """
     max_length = max(Uint(base_length), Uint(modulus_length))
-    if max_length <= 64:
-        return max_length**2
-    elif max_length <= 1024:
-        return max_length**2 // 4 + 96 * max_length - 3072
+    if max_length <= Uint(64):
+        return max_length ** Uint(2)
+    elif max_length <= Uint(1024):
+        return (
+            max_length ** Uint(2) // Uint(4)
+            + Uint(96) * max_length
+            - Uint(3072)
+        )
     else:
-        return max_length**2 // 16 + 480 * max_length - 199680
+        return (
+            max_length ** Uint(2) // Uint(16)
+            + Uint(480) * max_length
+            - Uint(199680)
+        )
 
 
 def iterations(exponent_length: U256, exponent_head: Uint) -> Uint:
@@ -113,12 +122,12 @@ def iterations(exponent_length: U256, exponent_head: Uint) -> Uint:
     iterations : `Uint`
         Number of iterations.
     """
-    if exponent_length < 32:
-        adjusted_exp_length = Uint(max(0, exponent_head.bit_length() - 1))
+    if exponent_length < U256(32):
+        adjusted_exp_length = Uint(max(0, int(exponent_head.bit_length()) - 1))
     else:
         adjusted_exp_length = Uint(
             8 * (int(exponent_length) - 32)
-            + max(0, exponent_head.bit_length() - 1)
+            + max(0, int(exponent_head.bit_length()) - 1)
         )
 
     return max(adjusted_exp_length, Uint(1))

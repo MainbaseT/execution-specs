@@ -11,7 +11,9 @@ Introduction
 
 Implementations of the EVM Memory instructions.
 """
-from ethereum.base_types import U256, Bytes, Uint
+from ethereum_types.bytes import Bytes
+from ethereum_types.numeric import U256, Uint
+
 from ethereum.utils.numeric import ceil32
 
 from .. import Evm
@@ -54,7 +56,7 @@ def mstore(evm: Evm) -> None:
     memory_write(evm.memory, start_position, value)
 
     # PROGRAM COUNTER
-    evm.pc += 1
+    evm.pc += Uint(1)
 
 
 def mstore8(evm: Evm) -> None:
@@ -82,11 +84,11 @@ def mstore8(evm: Evm) -> None:
 
     # OPERATION
     evm.memory += b"\x00" * extend_memory.expand_by
-    normalized_bytes_value = Bytes([value & 0xFF])
+    normalized_bytes_value = Bytes([value & U256(0xFF)])
     memory_write(evm.memory, start_position, normalized_bytes_value)
 
     # PROGRAM COUNTER
-    evm.pc += 1
+    evm.pc += Uint(1)
 
 
 def mload(evm: Evm) -> None:
@@ -116,7 +118,7 @@ def mload(evm: Evm) -> None:
     push(evm.stack, value)
 
     # PROGRAM COUNTER
-    evm.pc += 1
+    evm.pc += Uint(1)
 
 
 def msize(evm: Evm) -> None:
@@ -139,7 +141,7 @@ def msize(evm: Evm) -> None:
     push(evm.stack, U256(len(evm.memory)))
 
     # PROGRAM COUNTER
-    evm.pc += 1
+    evm.pc += Uint(1)
 
 
 def mcopy(evm: Evm) -> None:
@@ -158,7 +160,7 @@ def mcopy(evm: Evm) -> None:
     length = pop(evm.stack)
 
     # GAS
-    words = ceil32(Uint(length)) // 32
+    words = ceil32(Uint(length)) // Uint(32)
     copy_gas_cost = GAS_COPY * words
 
     extend_memory = calculate_gas_extend_memory(
@@ -172,4 +174,4 @@ def mcopy(evm: Evm) -> None:
     memory_write(evm.memory, destination, value)
 
     # PROGRAM COUNTER
-    evm.pc += 1
+    evm.pc += Uint(1)
